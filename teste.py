@@ -7,36 +7,74 @@ import sys
 def read_meds(filename: str) -> list:
     # Tratamento de exceções caso o ficheiro não exista (Objetivo 3)
     try:
+        lista_limpa: list = [] # 1. Começamos com uma lista vazia
+        
         with open(filename, 'r', encoding='utf-8') as f:
-            return [line.replace("", "").strip() for line in f if line.strip()]
+            for line in f: # 2. Lemos o ficheiro linha a linha
+                
+                # 3. Limpamos o lixo e os espaços invisíveis
+                texto_limpo = line.replace("", "").strip()
+                
+                # 4. Se a linha não estiver vazia, guardamos na lista
+                if texto_limpo != "":
+                    lista_limpa.append(texto_limpo)
+                    
+        return lista_limpa # 5. Entregamos a lista final pronta a usar
+        
     except Exception as e:
         print(f"Error reading file: {e}")
         sys.exit(1)
-
 # 3. Criação da segunda função: gerar matriz de interações (Objetivo 4 e 6)
 # Usa estruturas mutáveis (dict) e imutáveis (tuplos) com tipificação
 def gen_matrix(meds: list) -> dict:
-    # Gera valores de 1 a 6, e coloca 0 quando cruza com o próprio medicamento
-    return {(x, y): (0 if x == y else random.randint(1, 6)) for x in meds for y in meds}
-
+    matriz: dict = {} # 1. Criamos um dicionário vazio (estrutura mutável)
+    
+    # 2. Pegamos no medicamento da LINHA
+    for x in meds:
+        
+        # 3. Cruzamos com o medicamento da COLUNA
+        for y in meds:
+            
+            # 4. Verificamos se é o mesmo medicamento
+            if x == y:
+                matriz[(x, y)] = 0 # O efeito sobre ele próprio é 0
+            else:
+                matriz[(x, y)] = random.randint(1, 6) # O efeito cruzado é aleatório (1 a 6)
+                
+    return matriz # 5. Entregamos a matriz preenchida
 # 4. Criação da terceira função: exportar dados para Excel (Objetivo 1)
 def export_excel(matrix: dict, meds: list, filename: str) -> None:
-    # Tratamento de exceções caso o Excel esteja aberto e bloqueie a gravação (Objetivo 3)
     try:
         wb = openpyxl.Workbook()
         ws = wb.active
         
-        # Preenchimento das linhas e colunas
-        for i, x in enumerate(meds, start=2):
-            ws.cell(row=1, column=i, value=x) 
-            ws.cell(row=i, column=1, value=x) 
+        header_row: list = [""] 
+        
+        # Adicionamos todos os nomes dos medicamentos a esta linha
+        for med in meds:
+            header_row.append(med)
             
-            for j, y in enumerate(meds, start=2):
-                ws.cell(row=i, column=j, value=matrix[(x, y)]) 
+        ws.append(header_row) 
+        
+        # ---  As Linhas de Dados  ---
+        for row_med in meds:
+            
+            
+            new_row: list = [row_med]
+            
+            
+            for col_med in meds:
+                effect = matrix[(row_med, col_med)]
+                new_row.append(effect)
                 
+            ws.append(new_row) 
+            
+        # Guarda o ficheiro no disco
         wb.save(filename)
+        
+        
     except Exception as e:
-        print(f"Error saving Excel: {e}")
+        print(f"Erro ao guardar o Excel: {e}")
         sys.exit(1)
 
 # 5. Função principal: estruturação por decomposição funcional (Objetivo 5)
