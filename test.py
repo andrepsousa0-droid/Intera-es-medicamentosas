@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch, mock_open, MagicMock
 
 # Assuming the functions are imported from a module named 'interacoes_medicamentosas'
-from Interacoes_medicamentosas import read_meds, gen_matrix, export_excel
+from logic import read_meds, gen_matrix, export_excel, convert_xlsx_to_csv
 
 
 class TestMedicalProcessor(unittest.TestCase):
@@ -170,7 +170,7 @@ class TestMedicalProcessor(unittest.TestCase):
     @patch("openpyxl.Workbook")
     def test_export_excel_success(self, mock_workbook: MagicMock) -> None:
         """
-        Valida a operação de exportação XLSX sem comprometer ou sujar o disco físico.
+        Valida a operação de exportação XLSX sem comprometer o disco físico.
 
         Parameters
         ----------
@@ -217,6 +217,95 @@ class TestMedicalProcessor(unittest.TestCase):
         """
         with self.assertRaises(TypeError, msg="Erro Crítico: TypeError não disparou ao tentar exportar uma matriz nula para Excel."):
             export_excel(None, ["DrugA"], "crash.xlsx")  # type: ignore
+
+
+class TestFileConversion(unittest.TestCase):
+
+    @patch("openpyxl.load_workbook")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_convert_valid_partition(self, mock_file: MagicMock, mock_load_wb: MagicMock) -> None:
+        """
+        Testa o fluxo limpo de conversão de XLSX para CSV (Input Space Partitioning - Caso Válido).
+
+        Parameters
+        ----------
+        mock_file : MagicMock
+            Mock injetado para a função builtins.open (escrita do CSV).
+        mock_load_wb : MagicMock
+            Mock injetado para simular o motor de leitura do openpyxl.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        AssertionError
+            Se os métodos vitais de I/O não forem ativados no processo.
+        """
+        mock_wb_instance = MagicMock()
+        mock_sheet = MagicMock()
+        mock_sheet.iter_rows.return_value = [("Medicine", "Interaction"), ("Aspirin", "1")]
+        mock_wb_instance.active = mock_sheet
+        mock_load_wb.return_value = mock_wb_instance
+
+        convert_xlsx_to_csv("valid_input.xlsx", "valid_output.csv")
+
+        mock_load_wb.assert_called_once_with("valid_input.xlsx")
+        self.assertTrue(mock_file.called, "Erro Crítico: A operação de gravação do ficheiro CSV nunca foi instigada.")
+
+    @patch("openpyxl.load_workbook")
+    def test_convert_boundary_exception(self, mock_load_wb: MagicMock) -> None:
+        """
+        Força a condição limite de um ficheiro fonte inexistente.
+
+        Parameters
+        ----------
+        mock_load_wb : MagicMock
+            Mock do openpyxl configurado para detonar um FileNotFoundError.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        FileNotFoundError
+            Garantia de que a função não mascare a ausência de ficheiro fonte.
+        """
+        mock_load_wb.side_effect = FileNotFoundError("Ficheiro XLSX origem não existe.")
+
+        with self.assertRaises(FileNotFoundError, msg="Falha na Defesa: A função abafou um FileNotFoundError originado pela leitura do Excel."):
+            convert_xlsx_to_csv("ghost_input.xlsx", "output.csv")
+
+    @patch("openpyxl.load_workbook")
+    @patch("builtins.open", side_effect=PermissionError("Sem autorização de escrita."))
+    def test_convert_io_exception(self, mock_file: MagicMock, mock_load_wb: MagicMock) -> None:
+        """
+        Garante a correta propagação de erros de I/O na escrita do destino.
+
+        Parameters
+        ----------
+        mock_file : MagicMock
+            Mock do builtins.open configurado para bloquear a escrita (PermissionError).
+        mock_load_wb : MagicMock
+            Mock passivo do openpyxl, permitindo que a leitura passe sem erros.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        PermissionError
+            Assegura que a violação de permissões I/O no SO é lançada de volta.
+        """
+        mock_wb_instance = MagicMock()
+        mock_load_wb.return_value = mock_wb_instance
+
+        with self.assertRaises(PermissionError, msg="Falha na Defesa: A conversão não bloqueou adequadamente perante uma violação de permissão de sistema (PermissionError)."):
+            convert_xlsx_to_csv("source.xlsx", "protected_output.csv")
+
 
 if __name__ == '__main__':
     unittest.main()

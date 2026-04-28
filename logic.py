@@ -1,6 +1,7 @@
 import random
-from typing import List, Dict, Tuple, Any
+import csv
 import openpyxl
+from typing import List, Dict, Tuple, Any, TextIO
 
 def read_meds(filename: str) -> List[str]:
     """
@@ -20,12 +21,14 @@ def read_meds(filename: str) -> List[str]:
     ------
     FileNotFoundError
         Se o ficheiro de texto especificado não for encontrado.
-    Exception
+    OSError
         Se ocorrer qualquer outro erro inesperado durante a abertura ou leitura do ficheiro.
     """
     clean_list: List[str] = []
     try:
+        file_handler: TextIO
         with open(filename, 'r', encoding='utf-8') as file_handler:
+            line: str
             for line in file_handler:
                 clean_text: str = line.strip()
                 if clean_text:
@@ -52,6 +55,8 @@ def gen_matrix(meds: List[str]) -> Dict[Tuple[str, str], int]:
         e os valores são o grau de interação (0 para o mesmo medicamento, 1 a 6 para distintos).
     """
     matrix: Dict[Tuple[str, str], int] = {}
+    med_row: str
+    med_col: str
     for med_row in meds:
         for med_col in meds:
             if med_row == med_col:
@@ -75,7 +80,9 @@ def export_excel(matrix: Dict[Tuple[str, str], int], meds: List[str], filename: 
 
     Raises
     ------
-    IOError
+    TypeError
+        Se a matriz submetida for nula ou não inicializada.
+    OSError
         Se houver problemas de permissão, ficheiro corrompido ou falhas ao guardar no disco.
     """
     if matrix is None:
@@ -86,11 +93,14 @@ def export_excel(matrix: Dict[Tuple[str, str], int], meds: List[str], filename: 
         worksheet: Any = workbook.active
         
         header_row: List[str] = [""]
+        med: str
         for med in meds:
             header_row.append(med)
         
         worksheet.append(header_row)
         
+        row_med: str
+        col_med: str
         for row_med in meds:
             new_row: List[Any] = [row_med]
             for col_med in meds:
@@ -101,4 +111,43 @@ def export_excel(matrix: Dict[Tuple[str, str], int], meds: List[str], filename: 
             
         workbook.save(filename)
     except Exception as exc:
-        raise IOError(f"Erro grave ao tentar criar ou guardar o ficheiro Excel: {exc}") from exc
+        raise OSError(f"Erro grave ao tentar criar ou guardar o ficheiro Excel: {exc}") from exc
+
+def convert_xlsx_to_csv(excel_path: str, csv_path: str) -> None:
+    """
+    Converte um ficheiro Excel para um ficheiro CSV rigorosamente formatado.
+
+    A função utiliza a biblioteca openpyxl para carregar a folha ativa de um
+    documento Excel e converte-o de imediato, escrevendo o conteúdo linha a
+    linha num ficheiro de destino suportado nativamente pelo formato CSV.
+
+    Parameters
+    ----------
+    excel_path : str
+        Caminho exato no disco do ficheiro Excel de origem.
+    csv_path : str
+        Caminho do ficheiro CSV a ser criado como destino.
+
+    Raises
+    ------
+    FileNotFoundError
+        Se o ficheiro Excel indicado não for localizado no sistema.
+    IOError
+        Se ocorrer qualquer anomalia de input/output ou de permissões.
+    """
+    try:
+        workbook: openpyxl.Workbook = openpyxl.load_workbook(excel_path)
+        worksheet: Any = workbook.active
+        
+        csv_file: TextIO
+        with open(csv_path, 'w', encoding='utf-8', newline='') as csv_file:
+            csv_writer: Any = csv.writer(csv_file, delimiter=',')
+            
+            row: Tuple[Any, ...]
+            for row in worksheet.iter_rows(values_only=True):
+                row_data: List[Any] = list(row)
+                csv_writer.writerow(row_data)
+
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(f"Erro: O ficheiro Excel de origem '{excel_path}' não foi encontrado.") from exc
+  
